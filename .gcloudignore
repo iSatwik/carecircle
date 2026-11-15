@@ -1,0 +1,8 @@
+.git
+.gitignore
+node_modules/
+coverage/
+tests/
+.env
+*.log
+deploy.sh
