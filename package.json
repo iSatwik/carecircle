@@ -13,7 +13,7 @@
     "dev": "node --watch src/server.js",
     "test": "node --test --test-concurrency=1",
     "test:coverage": "node --test --test-concurrency=1 --experimental-test-coverage",
-    "lint": "node --check src/server.js"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@google-cloud/firestore": "^9.4.1",
@@ -28,6 +28,9 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "globals": "^17.14.0",
     "supertest": "^7.0.0"
   }
 }

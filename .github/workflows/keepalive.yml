@@ -1,0 +1,19 @@
+# Free Render instances sleep after 15 minutes without traffic. This light ping
+# keeps the live demo responsive so judges and reminder checks never hit a cold start.
+name: Keep live demo awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping health endpoint
+        run: curl --silent --show-error --max-time 90 --retry 2 https://carecircle-nvnr.onrender.com/healthz

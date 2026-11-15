@@ -1,5 +1,7 @@
 # CareCircle 💙 — Elder-centred Medication & Care Management
 
+[![CI](https://github.com/iSatwik/carecircle/actions/workflows/ci.yml/badge.svg)](https://github.com/iSatwik/carecircle/actions/workflows/ci.yml)
+
 > **PromptWars × Catalyst – Challenge: Elderly Care & Medication Management Platform**
 
 CareCircle is a shared, secure care space where an **elderly person, their caretakers and their family** manage medicines, doctor appointments and daily routines together — while the **elder stays in charge of their own healthcare decisions**.
@@ -113,7 +115,7 @@ src/
     auth.js           scrypt passcodes, JWT sessions, constant-time compare
     googleLinks.js    Google Calendar & Maps deep links
 public/               index.html, styles.css, app.js, i18n.js (no frameworks)
-tests/                47 tests (node:test + supertest)
+tests/                61 tests (node:test + supertest)
 ```
 
 ## 🔐 Security
@@ -128,7 +130,7 @@ tests/                47 tests (node:test + supertest)
 - Front end renders user data with `textContent` only (XSS-safe); email HTML is escaped.
 - Cron endpoint protected by a secret header compared in constant time.
 - Gemini key sent in a header (never in URLs); prompts treat user text strictly as data.
-- Container runs as a **non-root** user; `npm audit` reports **0 vulnerabilities**.
+- Container runs as a **non-root** user; `npm audit` reports **0 vulnerabilities**, checked in CI on every push, with Dependabot updates. See [SECURITY.md](SECURITY.md).
 
 ## ♿ Accessibility
 
@@ -154,9 +156,14 @@ tests/                47 tests (node:test + supertest)
 
 ```bash
 npm install
-npm test               # 47 tests: unit + API integration + reminder engine
+npm run lint           # ESLint (flat config, recommended rules + strict equality)
+npm test               # 61 tests: unit, API integration, reminder engine, front end
 npm run test:coverage  # ~97% line coverage
 ```
+
+Every push runs **GitHub Actions CI** (lint, tests with coverage, `npm audit`), and **Dependabot** keeps dependencies up to date.
+
+The front-end tests check that the Hindi and Telugu translations are complete, that every form control and button has an accessible name, that dialogs and views are labelled, that zoom isn't disabled, and that core colour pairs meet **WCAG AA 4.5:1 contrast**.
 
 The tests cover passcode hashing, tokens, tenant isolation, the elder-approval flow, role permissions, input validation, dose logging and pill counts, adherence maths, timezone scheduling, the reminder escalation ladder and de-duplication, appointment and refill alerts, the help button, check-in health alerts, streaks, the health card, Gemini integration with a mocked fetch and fallbacks, and email HTML escaping.
 

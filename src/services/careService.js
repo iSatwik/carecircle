@@ -27,7 +27,11 @@ const DEFAULT_NOTIFY = Object.freeze({
   family: { upcoming: false, missed: false, escalation: true, appointments: true, refill: false },
 });
 
-const publicProfile = ({ passcodeHash, ...rest }) => rest; // never expose the hash
+/** Returns a profile without its passcode hash, which must never leave the server. */
+const publicProfile = (profile) => {
+  const { passcodeHash: _omitted, ...rest } = profile;
+  return rest;
+};
 const actorOf = (m) => ({ memberId: m.id, name: m.name, role: m.role });
 
 class CareService {
