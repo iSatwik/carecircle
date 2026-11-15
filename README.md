@@ -8,6 +8,26 @@ CareCircle is a shared, secure care space where an **elderly person, their caret
 
 ---
 
+## 🎯 Chosen vertical
+
+**Elderly Care & Medication Management Platform.** The persona is an elder (65+) who manages daily medicines, together with the caretakers and family members who support them.
+
+## 🧠 Approach and logic
+
+- **Elder at the centre:** every decision path checks the user's role. Medicine changes by family or caretakers become requests that only the elder can approve, and only the elder can change settings or remove people.
+- **Context-aware reminders:** for each scheduled dose, the reminder engine compares the current time in the elder's timezone with the dose time and whether it was logged. It then picks one action: a heads-up 15 minutes before; a nudge to the elder and caretaker 30 minutes after; or, after 90 minutes, marking the dose missed and alerting the family. Every email has a fixed key, so it is sent only once.
+- **Health signals:** daily check-ins compare blood pressure and sugar against conservative thresholds. Readings are shared with the family only when they are worrying or the elder says they feel unwell.
+- **Assistive AI:** Gemini explains medicines and writes a weekly family note in the user's language. If Gemini is unavailable, the app falls back to safe built-in text.
+
+## 📝 Assumptions
+
+- Each care circle belongs to one elder. Members join with a circle code and passcode shared in person or by phone.
+- Medicine times are entered in the elder's local timezone (default Asia/Kolkata).
+- A dose not logged within 30 minutes is "not taken yet", and after 90 minutes it is "missed". Doses scheduled before a medicine was added are never counted as missed.
+- Health alert thresholds (BP ≥ 180/110 or < 90 systolic; sugar < 70 or > 300 mg/dL) only decide when to notify the family. They are not a diagnosis.
+- AI output is general information, not medical advice, and is always labelled that way.
+- Without email or AI keys, the app still works fully: emails appear in the in-app outbox and AI uses fallback text. On the free host, data is kept in memory and resets on restart; Firestore is used on Google Cloud.
+
 ## ✨ How it answers the problem statement
 
 | Requirement | How CareCircle does it |
