@@ -66,3 +66,26 @@ test('outbox mode records once per key and skips empty recipients', async () => 
   assert.deepEqual(rec.to, ['a@x.com']);
   assert.equal(rec.status, 'recorded');
 });
+
+test('Brevo HTTPS delivery is used when BREVO_API_KEY is set', async () => {
+  const { parseSender } = require('../src/services/email');
+  assert.deepEqual(parseSender('CareCircle <care@example.com>'), { name: 'CareCircle', email: 'care@example.com' });
+  assert.deepEqual(parseSender('care@example.com'), { name: 'CareCircle', email: 'care@example.com' });
+
+  const calls = [];
+  const fetchImpl = async (url, opts) => { calls.push({ url, opts }); return { ok: true, status: 201 }; };
+  const store = new MemoryStore();
+  const email = new EmailService({ store, smtp: { brevoApiKey: 'xkey', from: 'CareCircle <care@example.com>' } }, fetchImpl);
+  assert.equal(email.mode, 'brevo');
+  await email.sendOnce({ key: 'b1', profileId: 'p', type: 'sos', to: ['a@x.com'], subject: 'Help', heading: 'h', lines: ['l'] });
+  assert.equal(calls[0].url, 'https://api.brevo.com/v3/smtp/email');
+  assert.equal(calls[0].opts.headers['api-key'], 'xkey');
+  const body = JSON.parse(calls[0].opts.body);
+  assert.deepEqual(body.to, [{ email: 'a@x.com' }]);
+  assert.equal(body.sender.email, 'care@example.com');
+  assert.equal((await store.get('notifications', 'b1')).status, 'sent');
+
+  const failing = new EmailService({ store, smtp: { brevoApiKey: 'x', from: 'a@b.c' } }, async () => ({ ok: false, status: 401 }));
+  await failing.sendOnce({ key: 'b2', profileId: 'p', type: 't', to: ['a@x.com'], subject: 's', heading: 'h', lines: ['l'] });
+  assert.equal((await store.get('notifications', 'b2')).status, 'failed');
+});

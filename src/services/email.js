@@ -28,11 +28,27 @@ function renderHtml({ heading, lines, ctaUrl, ctaLabel }) {
 <p style="font-size:14px;color:#555">Sent by CareCircle on behalf of your care circle.</p></body></html>`;
 }
 
+/** Pulls the bare address out of "Name <user@example.com>". */
+function parseSender(from) {
+  const match = /<([^>]+)>/.exec(from || '');
+  const email = (match ? match[1] : from || '').trim();
+  const name = match ? from.slice(0, match.index).trim().replace(/^"|"$/g, '') : 'CareCircle';
+  return { name: name || 'CareCircle', email };
+}
+
 class EmailService {
-  constructor({ store, smtp }) {
+  /**
+   * Delivery, in order of preference:
+   *  1. Brevo HTTPS API (BREVO_API_KEY) – works on hosts that block SMTP ports
+   *  2. SMTP, e.g. Gmail with an App Password (SMTP_HOST/USER/PASS)
+   *  3. In-app outbox only (nothing configured)
+   */
+  constructor({ store, smtp }, fetchImpl = globalThis.fetch) {
     this.store = store;
     this.smtp = smtp;
-    this.transport = smtp.host && smtp.user && smtp.pass
+    this.fetch = fetchImpl;
+    this.brevoKey = smtp.brevoApiKey || '';
+    this.transport = !this.brevoKey && smtp.host && smtp.user && smtp.pass
       ? nodemailer.createTransport({
         host: smtp.host,
         port: smtp.port,
@@ -43,7 +59,28 @@ class EmailService {
   }
 
   get mode() {
+    if (this.brevoKey) return 'brevo';
     return this.transport ? 'smtp' : 'outbox';
+  }
+
+  async deliver({ to, subject, text, html }) {
+    if (this.brevoKey) {
+      const res = await this.fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': this.brevoKey, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          sender: parseSender(this.smtp.from),
+          to: to.map((email) => ({ email })),
+          subject,
+          textContent: text,
+          htmlContent: html,
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) throw new Error(`Brevo HTTP ${res.status}`);
+      return;
+    }
+    await this.transport.sendMail({ from: this.smtp.from, to: to.join(', '), subject, text, html });
   }
 
   /**
@@ -68,20 +105,14 @@ class EmailService {
     const fresh = await this.store.createIfAbsent(COLLECTIONS.notifications, record);
     if (!fresh) return false;
 
-    if (!this.transport) {
+    if (this.mode === 'outbox') {
       await this.store.update(COLLECTIONS.notifications, record.id, { status: 'recorded' });
       logger.info('email.outbox', { type: msg.type, profileId: msg.profileId, recipients: recipients.length });
       return true;
     }
 
     try {
-      await this.transport.sendMail({
-        from: this.smtp.from,
-        to: recipients.join(', '),
-        subject: msg.subject,
-        text: record.text,
-        html: renderHtml(msg),
-      });
+      await this.deliver({ to: recipients, subject: msg.subject, text: record.text, html: renderHtml(msg) });
       await this.store.update(COLLECTIONS.notifications, record.id, { status: 'sent' });
       logger.info('email.sent', { type: msg.type, profileId: msg.profileId, recipients: recipients.length });
     } catch (err) {
@@ -92,4 +123,4 @@ class EmailService {
   }
 }
 
-module.exports = { EmailService, escapeHtml, renderHtml };
+module.exports = { EmailService, escapeHtml, renderHtml, parseSender };

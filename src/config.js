@@ -57,7 +57,7 @@ const config = Object.freeze({
   missedGraceMin: int(env.MISSED_GRACE_MIN, 30),
   escalateAfterMin: int(env.ESCALATE_AFTER_MIN, 90),
 
-  // Email (SMTP). If not configured, emails go to the in-app outbox + logs.
+  // Email: Brevo HTTPS API (BREVO_API_KEY) or SMTP. If neither is set, emails go to the in-app outbox + logs.
   smtp: {
     host: env.SMTP_HOST || '',
     port: int(env.SMTP_PORT, 465),
@@ -65,6 +65,7 @@ const config = Object.freeze({
     user: env.SMTP_USER || '',
     pass: env.SMTP_PASS || '',
     from: env.MAIL_FROM || env.SMTP_USER || 'CareCircle <no-reply@carecircle.local>',
+    brevoApiKey: env.BREVO_API_KEY || '',
   },
 
   // Google Cloud Text-to-Speech (natural voices). On by default on Cloud Run

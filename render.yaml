@@ -1,0 +1,27 @@
+# One-click deploy on Render (https://render.com/deploy) using the Dockerfile.
+# Secrets marked `sync: false` are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: carecircle
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: STORE
+        value: memory
+      - key: DEFAULT_TIMEZONE
+        value: Asia/Kolkata
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: MAIL_FROM
+        sync: false # e.g. CareCircle <you@gmail.com> (must be a Brevo-verified sender)
+      - key: BREVO_API_KEY
+        sync: false # free key from https://app.brevo.com/settings/keys/api
+      - key: GEMINI_API_KEY
+        sync: false # free key from https://aistudio.google.com/apikey

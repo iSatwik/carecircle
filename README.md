@@ -52,7 +52,7 @@ CareCircle is a shared, secure care space where an **elderly person, their caret
 | **Google Gemini API** | Medicine explanations and weekly family care summaries. |
 | **Google Cloud Text-to-Speech** | Natural Chirp 3 HD voices in English (India), Hindi and Telugu for read-aloud and spoken updates. |
 | **Google Cloud Scheduler** | Calls `POST /api/cron/tick` every 5 minutes to run reminders (works with scale-to-zero). |
-| **Gmail (SMTP)** | Sends reminder emails through a Google App Password. |
+| **Gmail (SMTP)** | Sends reminder emails through a Google App Password (Brevo's HTTPS API is supported for hosts that block SMTP). |
 | **Google Fonts** | Atkinson Hyperlegible and Lexend, chosen for low-vision readability. |
 | **Google Calendar** | One-tap "Add to Google Calendar" for every appointment. |
 | **Google Maps** | Directions link for the hospital or clinic. |
@@ -93,7 +93,7 @@ src/
     auth.js           scrypt passcodes, JWT sessions, constant-time compare
     googleLinks.js    Google Calendar & Maps deep links
 public/               index.html, styles.css, app.js, i18n.js (no frameworks)
-tests/                46 tests (node:test + supertest)
+tests/                47 tests (node:test + supertest)
 ```
 
 ## 🔐 Security
@@ -134,7 +134,7 @@ tests/                46 tests (node:test + supertest)
 
 ```bash
 npm install
-npm test               # 46 tests: unit + API integration + reminder engine
+npm test               # 47 tests: unit + API integration + reminder engine
 npm run test:coverage  # ~97% line coverage
 ```
 
@@ -146,6 +146,20 @@ The tests cover passcode hashing, tokens, tenant isolation, the elder-approval f
 npm install
 npm start            # http://localhost:8080 (in-memory store, emails go to the in-app outbox)
 ```
+
+## 🚀 Deploy on Render (free, no billing needed)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/iSatwik/carecircle)
+
+`render.yaml` builds the Dockerfile and generates the secrets. You only paste three values:
+
+| Variable | Where to get it |
+|---|---|
+| `GEMINI_API_KEY` | Free key from [Google AI Studio](https://aistudio.google.com/apikey) |
+| `BREVO_API_KEY` | Free key from [Brevo](https://app.brevo.com/settings/keys/api). Emails are sent over HTTPS, because free hosts block SMTP ports. |
+| `MAIL_FROM` | `CareCircle <your-brevo-login-email>` |
+
+Without a database the free plan uses the in-memory store, so data resets when the service restarts. A GitHub Actions ping keeps the service awake so reminder checks keep running.
 
 ## ☁️ Deploy to Google Cloud Run
 
