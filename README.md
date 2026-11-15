@@ -4,7 +4,7 @@
 
 CareCircle is a shared, secure care space where an **elderly person, their caretakers and their family** manage medicines, doctor appointments and daily routines together — while the **elder stays in charge of their own healthcare decisions**.
 
-**Live demo:** _add your Cloud Run URL here_
+**Live demo:** https://carecircle-nvnr.onrender.com
 
 ---
 
