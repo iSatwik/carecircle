@@ -130,7 +130,7 @@ tests/                61 tests (node:test + supertest)
 - Front end renders user data with `textContent` only (XSS-safe); email HTML is escaped.
 - Cron endpoint protected by a secret header compared in constant time.
 - Gemini key sent in a header (never in URLs); prompts treat user text strictly as data.
-- Container runs as a **non-root** user; `npm audit` reports **0 vulnerabilities**, checked in CI on every push, with Dependabot updates. See [SECURITY.md](SECURITY.md).
+- Container runs as a **non-root** user; `npm audit` reports **0 vulnerabilities**, checked in CI on every push. See [SECURITY.md](SECURITY.md).
 
 ## ♿ Accessibility
 
@@ -161,7 +161,7 @@ npm test               # 61 tests: unit, API integration, reminder engine, front
 npm run test:coverage  # ~97% line coverage
 ```
 
-Every push runs **GitHub Actions CI** (lint, tests with coverage, `npm audit`), and **Dependabot** keeps dependencies up to date.
+Every push runs **GitHub Actions CI**: lint, tests with coverage, and `npm audit`.
 
 The front-end tests check that the Hindi and Telugu translations are complete, that every form control and button has an accessible name, that dialogs and views are labelled, that zoom isn't disabled, and that core colour pairs meet **WCAG AA 4.5:1 contrast**.
 

@@ -11,7 +11,7 @@ CareCircle stores health information for elders, so security is treated as a cor
 - **Rate limiting** on sign-in, AI, help alerts and the general API.
 - **Browser hardening:** Helmet headers and a strict Content-Security-Policy with no inline scripts or styles; the front end renders data with `textContent` only.
 - **Secrets** come only from environment variables. Production refuses to start without `JWT_SECRET`.
-- **Dependencies** are audited in CI (`npm audit`) and kept current by Dependabot.
+- **Dependencies** are audited in CI (`npm audit`) on every push.
 - The container runs as a non-root user.
 
 ## Reporting a vulnerability
