@@ -12,9 +12,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const read = (f) => fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
+const PUBLIC = path.join(__dirname, '..', 'public');
+const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
 const html = read('index.html');
-const appJs = read('app.js');
+
+/** Every front-end module, keyed by its path under public/ (e.g. "js/views/today.js"). */
+const modules = Object.fromEntries(
+  fs.readdirSync(path.join(PUBLIC, 'js'), { recursive: true })
+    .filter((f) => f.endsWith('.js'))
+    .map((f) => [path.posix.join('js', f.split(path.sep).join('/')), read(path.join('js', f))]),
+);
+const appJs = Object.values(modules).join('\n');
 const css = read('styles.css');
 
 function loadDictionaries() {
@@ -40,7 +48,7 @@ test('every translation keeps the same {placeholders} as its English source', ()
   }
 });
 
-test('every t("...") string used in app.js has a Hindi and Telugu translation', () => {
+test('every t("...") string used in the front end has a Hindi and Telugu translation', () => {
   const { hi, te } = loadDictionaries();
   const used = [...appJs.matchAll(/\bt\('((?:[^'\\]|\\.)*)'/g), ...appJs.matchAll(/\bt\("((?:[^"\\]|\\.)*)"/g)]
     .map((m) => m[1].replace(/\\'/g, "'"));
@@ -118,6 +126,27 @@ test('core colour pairs meet WCAG AA contrast (4.5:1)', () => {
   }
   assert.ok(contrast('#ffffff', v.teal) >= 4.5, 'white text on teal buttons');
   assert.ok(contrast('#ffffff', v.alert) >= 4.5, 'white text on the help button');
+});
+
+test('every front-end import points at a real module and a real export', () => {
+  const exportsOf = (src) => new Set([
+    ...[...src.matchAll(/export (?:async )?(?:function|const|let|class) ([\w$]+)/g)].map((m) => m[1]),
+  ]);
+  for (const [file, src] of Object.entries(modules)) {
+    for (const m of src.matchAll(/import\s+(?:\{([^}]*)\}|\* as \w+)\s+from\s+'([^']+)'/g)) {
+      const target = path.posix.join(path.posix.dirname(file), m[2]);
+      assert.ok(target in modules, `${file} imports missing ${target}`);
+      const names = (m[1] || '').split(',').map((n) => n.trim()).filter(Boolean);
+      for (const name of names) assert.ok(exportsOf(modules[target]).has(name), `${file}: ${target} has no export ${name}`);
+    }
+  }
+  assert.match(html, /<script type="module" src="\/js\/main\.js"><\/script>/);
+});
+
+test('no front-end module is longer than 300 lines', () => {
+  for (const [file, src] of Object.entries(modules)) {
+    assert.ok(src.split('\n').length <= 300, `${file} has ${src.split('\n').length} lines`);
+  }
 });
 
 test('front end never injects data with innerHTML or eval', () => {

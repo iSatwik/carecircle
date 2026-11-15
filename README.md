@@ -105,17 +105,21 @@ src/
   validation.js       Request schemas
   db/                 Store interface: Firestore + in-memory implementations
   services/
-    careService.js    Domain logic: circles, meds, approvals, doses, appointments
+    careService.js    Care-circle service; composes the domain modules below
+    care/             circles · medications & approvals · doses & adherence ·
+                      appointments · wellbeing (check-ins, help, health card) · activity
     reminders.js      Idempotent reminder + escalation engine
     schedule.js       Pure timezone-aware dose scheduling & adherence maths
-    email.js          SMTP / outbox with once-only delivery keys
+    email.js          Brevo / SMTP / outbox with once-only delivery keys
     ai.js             Gemini client with timeout, cache, language choice and safe fallback
     tts.js            Google Cloud Text-to-Speech (Chirp 3 HD) with caching and back-off
     vitals.js         Check-in alert thresholds and streak maths
     auth.js           scrypt passcodes, JWT sessions, constant-time compare
     googleLinks.js    Google Calendar & Maps deep links
-public/               index.html, styles.css, app.js, i18n.js (no frameworks)
-tests/                61 tests (node:test + supertest)
+public/               index.html, styles.css, i18n.js (no frameworks)
+  js/                 ES modules: core, api, voice, language, router, session …
+    views/            one module per screen: today, medicines, visits, circle, activity
+tests/                70 tests (node:test + supertest)
 ```
 
 ## 🔐 Security
@@ -157,7 +161,7 @@ tests/                61 tests (node:test + supertest)
 ```bash
 npm install
 npm run lint           # ESLint (flat config, recommended rules + strict equality)
-npm test               # 61 tests: unit, API integration, reminder engine, front end
+npm test               # 70 tests: unit, API integration, reminder engine, front end
 npm run test:coverage  # ~97% line coverage
 ```
 

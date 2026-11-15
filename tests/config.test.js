@@ -24,7 +24,7 @@ test('production starts when a JWT secret is provided', () => {
 
 test('CSP forbids inline scripts and framing; static assets are compressed', async () => {
   const ctx = buildApp();
-  const res = await request(ctx.app).get('/app.js').set('Accept-Encoding', 'gzip');
+  const res = await request(ctx.app).get('/js/views/today.js').set('Accept-Encoding', 'gzip');
   const csp = res.headers['content-security-policy'];
   assert.doesNotMatch(csp, /unsafe-inline|unsafe-eval/);
   assert.match(csp, /frame-ancestors 'none'/);

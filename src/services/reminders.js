@@ -21,6 +21,12 @@ const logger = require('../utils/logger');
 
 const C = COLLECTIONS;
 const SYSTEM_ACTOR = Object.freeze({ memberId: 'system', name: 'CareCircle', role: 'system' });
+const MINUTES_PER_DAY = 24 * 60;
+const APPT_FIRST_REMINDER_HOURS = 24;
+const APPT_SECOND_REMINDER_HOURS = 2;
+const DEFAULT_REFILL_THRESHOLD = 5;
+/** Categories the elder's own email address receives (escalations go to others). */
+const ELDER_CATEGORIES = new Set(['upcoming', 'missed', 'appointments', 'refill']);
 
 class ReminderEngine {
   constructor({ store, care, email, config }) {
@@ -34,8 +40,7 @@ class ReminderEngine {
   /** Recipient list for a notification category. */
   recipients(profile, members, category) {
     const emails = members.filter((m) => m.email && m.notify?.[category]).map((m) => m.email);
-    const elderWants = ['upcoming', 'missed', 'appointments', 'refill'].includes(category);
-    if (profile.elderEmail && elderWants) emails.push(profile.elderEmail);
+    if (profile.elderEmail && ELDER_CATEGORIES.has(category)) emails.push(profile.elderEmail);
     return [...new Set(emails.map((e) => e.toLowerCase()))];
   }
 
@@ -60,115 +65,154 @@ class ReminderEngine {
     }
   }
 
+  /**
+   * Which step of the escalation ladder a dose is on, given minutes since it was due
+   * (negative = still in the future). Returns null when nothing is due.
+   * @returns {'escalate' | 'missed' | 'upcoming' | null}
+   */
+  doseStage(minsSinceDue) {
+    const { escalateAfterMin, missedGraceMin, upcomingWindowMin } = this.config;
+    if (minsSinceDue >= escalateAfterMin && minsSinceDue < MINUTES_PER_DAY) return 'escalate';
+    if (minsSinceDue >= missedGraceMin && minsSinceDue < escalateAfterMin) return 'missed';
+    if (minsSinceDue < 0 && -minsSinceDue <= upcomingWindowMin) return 'upcoming';
+    return null;
+  }
+
+  /** Runs every reminder for one circle. */
   async processProfile(profile, nowUtc, stats) {
-    const tz = profile.timezone;
-    const now = nowUtc.setZone(tz);
     const [members, meds, appts, logs] = await Promise.all([
       this.store.listBy(C.members, 'profileId', profile.id),
       this.store.listBy(C.medications, 'profileId', profile.id),
       this.store.listBy(C.appointments, 'profileId', profile.id),
       this.care.logsById(profile.id),
     ]);
-    const medById = new Map(meds.map((m) => [m.id, m]));
-    const cta = this.config.publicUrl || undefined;
-    const base = { profileId: profile.id, ctaUrl: cta, ctaLabel: 'Open CareCircle' };
+    const ctx = {
+      profile,
+      members,
+      stats,
+      nowUtc,
+      now: nowUtc.setZone(profile.timezone),
+      base: { profileId: profile.id, ctaUrl: this.config.publicUrl || undefined, ctaLabel: 'Open CareCircle' },
+    };
+    await this.remindDoses(ctx, meds, logs);
+    await this.remindAppointments(ctx, appts);
+    await this.remindRefills(ctx, meds);
+  }
 
-    // ---- doses (yesterday + today, so late-night doses are handled)
+  /** Dose reminders for yesterday and today, so late-night doses are handled too. */
+  async remindDoses(ctx, meds, logs) {
+    const { now, profile } = ctx;
+    const medById = new Map(meds.map((m) => [m.id, m]));
     const doses = schedule
-      .dosesInRange(meds, now.minus({ days: 1 }).toISODate(), now.toISODate(), tz)
+      .dosesInRange(meds, now.minus({ days: 1 }).toISODate(), now.toISODate(), profile.timezone)
       .filter((d) => this.care.countsForMed(d, medById));
 
     for (const dose of doses) {
       if (logs.has(dose.id)) continue;
+      const stage = this.doseStage(now.diff(dose.at, 'minutes').minutes);
+      if (!stage) continue;
       const med = medById.get(dose.medicationId);
-      const mins = now.diff(dose.at, 'minutes').minutes; // negative = in the future
-      const label = `${med.name}${med.dosage ? ` ${med.dosage}` : ''}`;
-      const when = dose.at.toFormat('h:mm a');
-
-      if (mins >= this.config.escalateAfterMin && mins < 24 * 60) {
-        const created = await this.store.createIfAbsent(C.doses, {
-          id: dose.id,
-          profileId: profile.id,
-          medicationId: med.id,
-          scheduledFor: dose.at.toUTC().toISO(),
-          status: 'missed',
-          note: 'Automatically marked as missed',
-          recordedBy: SYSTEM_ACTOR,
-          recordedAt: nowUtc.toISO(),
-          late: false,
-        });
-        if (created) await this.care.logActivity(profile.id, SYSTEM_ACTOR, 'dose.missed', `${label} at ${when} was missed`);
-        const sent = await this.email.sendOnce({
-          ...base,
-          key: `escalate:${dose.id}`,
-          type: 'escalation',
-          to: this.recipients(profile, members, 'escalation').concat(this.recipients(profile, members, 'missed')),
-          subject: `Missed medicine: ${profile.elderName} – ${med.name}`,
-          heading: `${profile.elderName} missed a dose`,
-          lines: [
-            `${label} was due at ${when} and has not been marked as taken.`,
-            'Please check in with a gentle call. If it has been taken, mark it in CareCircle.',
-          ],
-        });
-        if (sent) stats.escalated += 1;
-      } else if (mins >= this.config.missedGraceMin && mins < this.config.escalateAfterMin) {
-        const sent = await this.email.sendOnce({
-          ...base,
-          key: `missed:${dose.id}`,
-          type: 'missed',
-          to: this.recipients(profile, members, 'missed'),
-          subject: `Reminder: ${med.name} was due at ${when}`,
-          heading: 'Did you take your medicine?',
-          lines: [
-            `${label} was due at ${when}.`,
-            med.instructions ? `How to take it: ${med.instructions}` : 'Please take it now if your doctor allows a late dose.',
-            'Then tap "I took it" in CareCircle so your family knows you are okay.',
-          ],
-        });
-        if (sent) stats.missed += 1;
-      } else if (mins < 0 && -mins <= this.config.upcomingWindowMin) {
-        const sent = await this.email.sendOnce({
-          ...base,
-          key: `upcoming:${dose.id}`,
-          type: 'upcoming',
-          to: this.recipients(profile, members, 'upcoming'),
-          subject: `Coming up at ${when}: ${med.name}`,
-          heading: 'Medicine time soon',
-          lines: [`It is almost time for ${label} (${when}).`, med.instructions ? `How to take it: ${med.instructions}` : ''].filter(Boolean),
-        });
-        if (sent) stats.upcoming += 1;
-      }
+      const info = { dose, med, label: `${med.name}${med.dosage ? ` ${med.dosage}` : ''}`, when: dose.at.toFormat('h:mm a') };
+      if (stage === 'escalate') await this.escalateDose(ctx, info);
+      else if (stage === 'missed') await this.sendMissedReminder(ctx, info);
+      else await this.sendUpcomingReminder(ctx, info);
     }
+  }
 
-    // ---- appointments
+  /** T+90: records the dose as missed (once) and alerts caretakers and family. */
+  async escalateDose({ profile, members, nowUtc, base, stats }, { dose, med, label, when }) {
+    const created = await this.store.createIfAbsent(C.doses, {
+      id: dose.id,
+      profileId: profile.id,
+      medicationId: med.id,
+      scheduledFor: dose.at.toUTC().toISO(),
+      status: 'missed',
+      note: 'Automatically marked as missed',
+      recordedBy: SYSTEM_ACTOR,
+      recordedAt: nowUtc.toISO(),
+      late: false,
+    });
+    if (created) await this.care.logActivity(profile.id, SYSTEM_ACTOR, 'dose.missed', `${label} at ${when} was missed`);
+    const sent = await this.email.sendOnce({
+      ...base,
+      key: `escalate:${dose.id}`,
+      type: 'escalation',
+      to: this.recipients(profile, members, 'escalation').concat(this.recipients(profile, members, 'missed')),
+      subject: `Missed medicine: ${profile.elderName} – ${med.name}`,
+      heading: `${profile.elderName} missed a dose`,
+      lines: [
+        `${label} was due at ${when} and has not been marked as taken.`,
+        'Please check in with a gentle call. If it has been taken, mark it in CareCircle.',
+      ],
+    });
+    if (sent) stats.escalated += 1;
+  }
+
+  /** T+30: a gentle "did you take it?" reminder. */
+  async sendMissedReminder({ profile, members, base, stats }, { dose, med, label, when }) {
+    const sent = await this.email.sendOnce({
+      ...base,
+      key: `missed:${dose.id}`,
+      type: 'missed',
+      to: this.recipients(profile, members, 'missed'),
+      subject: `Reminder: ${med.name} was due at ${when}`,
+      heading: 'Did you take your medicine?',
+      lines: [
+        `${label} was due at ${when}.`,
+        med.instructions ? `How to take it: ${med.instructions}` : 'Please take it now if your doctor allows a late dose.',
+        'Then tap "I took it" in CareCircle so your family knows you are okay.',
+      ],
+    });
+    if (sent) stats.missed += 1;
+  }
+
+  /** T-15: "medicine time soon". */
+  async sendUpcomingReminder({ profile, members, base, stats }, { dose, med, label, when }) {
+    const sent = await this.email.sendOnce({
+      ...base,
+      key: `upcoming:${dose.id}`,
+      type: 'upcoming',
+      to: this.recipients(profile, members, 'upcoming'),
+      subject: `Coming up at ${when}: ${med.name}`,
+      heading: 'Medicine time soon',
+      lines: [`It is almost time for ${label} (${when}).`, med.instructions ? `How to take it: ${med.instructions}` : ''].filter(Boolean),
+    });
+    if (sent) stats.upcoming += 1;
+  }
+
+  /** Appointment reminders 24 hours and 2 hours before. */
+  async remindAppointments({ profile, members, now, base, stats }, appts) {
+    const tz = profile.timezone;
     for (const appt of appts) {
       const at = DateTime.fromISO(appt.datetime, { zone: tz });
       const hours = at.diff(now, 'hours').hours;
-      if (hours <= 0 || hours > 24) continue;
-      const window = hours <= 2 ? '2h' : '24h';
-      const decorated = this.care.decorateAppointment(appt, tz);
+      if (hours <= 0 || hours > APPT_FIRST_REMINDER_HOURS) continue;
+      const soon = hours <= APPT_SECOND_REMINDER_HOURS;
+      const { mapsUrl } = this.care.decorateAppointment(appt, tz);
       const sent = await this.email.sendOnce({
         ...base,
-        key: `appt${window}:${appt.id}`,
+        key: `appt${soon ? '2h' : '24h'}:${appt.id}`,
         type: 'appointment',
         to: this.recipients(profile, members, 'appointments'),
-        subject: `${window === '2h' ? 'Soon' : 'Tomorrow'}: appointment with ${appt.doctor} at ${at.toFormat('h:mm a')}`,
+        subject: `${soon ? 'Soon' : 'Tomorrow'}: appointment with ${appt.doctor} at ${at.toFormat('h:mm a')}`,
         heading: 'Doctor appointment reminder',
         lines: [
           `${profile.elderName} has an appointment with ${appt.doctor}${appt.specialty ? ` (${appt.specialty})` : ''}.`,
           `When: ${at.toFormat('cccc d LLL, h:mm a')}`,
-          appt.location ? `Where: ${appt.location} – ${decorated.mapsUrl}` : '',
+          appt.location ? `Where: ${appt.location} – ${mapsUrl}` : '',
           appt.notes ? `Notes: ${appt.notes}` : '',
           'Remember to carry previous prescriptions and reports.',
         ].filter(Boolean),
       });
       if (sent) stats.appointments += 1;
     }
+  }
 
-    // ---- refills (at most once per medicine per day)
+  /** Low-stock alerts, at most once per medicine per day. */
+  async remindRefills({ profile, members, now, base, stats }, meds) {
     for (const med of meds) {
       if (med.active === false || typeof med.pillsRemaining !== 'number') continue;
-      if (med.pillsRemaining > (med.refillThreshold ?? 5)) continue;
+      if (med.pillsRemaining > (med.refillThreshold ?? DEFAULT_REFILL_THRESHOLD)) continue;
       const sent = await this.email.sendOnce({
         ...base,
         key: `refill:${med.id}:${now.toISODate()}`,

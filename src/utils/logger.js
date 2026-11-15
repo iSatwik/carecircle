@@ -13,8 +13,8 @@ function write(severity, message, fields = {}) {
   if (LEVELS[severity] < minLevel) return;
   const entry = { severity, message, time: new Date().toISOString(), ...fields };
   const line = JSON.stringify(entry);
-  if (LEVELS[severity] >= LEVELS.ERROR) process.stderr.write(line + '\n');
-  else process.stdout.write(line + '\n');
+  if (LEVELS[severity] >= LEVELS.ERROR) process.stderr.write(`${line  }\n`);
+  else process.stdout.write(`${line  }\n`);
 }
 
 module.exports = {
