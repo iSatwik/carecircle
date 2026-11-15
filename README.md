@@ -149,6 +149,8 @@ npm start            # http://localhost:8080 (in-memory store, emails go to the 
 
 ## ☁️ Deploy to Google Cloud Run
 
+[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/iSatwik/carecircle&show=terminal)
+
 **Fastest:** open [Google Cloud Shell](https://shell.cloud.google.com), then run:
 
 ```bash

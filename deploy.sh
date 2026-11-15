@@ -37,6 +37,12 @@ if ! gcloud firestore databases describe --database="(default)" --project "$PROJ
 fi
 
 if [ -z "${GEMINI_API_KEY:-}" ]; then
+  EXISTING_KEY="$(gcloud services api-keys list --project "$PROJECT_ID" --filter='displayName=carecircle-gemini' --format='value(name)' --limit=1 2>/dev/null)"
+  if [ -n "$EXISTING_KEY" ]; then
+    GEMINI_API_KEY="$(gcloud services api-keys get-key-string "$EXISTING_KEY" --format='value(keyString)' 2>/dev/null)"
+  fi
+fi
+if [ -z "${GEMINI_API_KEY:-}" ]; then
   echo "==> Creating a Gemini API key (restricted to the Gemini API)..."
   KEY_JSON="$(gcloud services api-keys create --display-name="carecircle-gemini" \
     --api-target=service=generativelanguage.googleapis.com --project "$PROJECT_ID" --format=json 2>/dev/null)"
