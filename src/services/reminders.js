@@ -3,7 +3,7 @@
 /**
  * Reminder engine – one idempotent "tick" that can be triggered by:
  *   - Google Cloud Scheduler → POST /api/cron/tick (recommended on Cloud Run)
- *   - the in-process interval (local dev / min-instances=1)
+ *   - the built-in interval timer (local dev / min-instances=1)
  *
  * Escalation ladder for each scheduled dose that has not been logged:
  *   T - 15 min  → "upcoming dose" email (elder)

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Natural-sounding speech with Google Cloud Text-to-Speech (Chirp 3: HD voices).
+ * Natural-sounding speech with Google Cloud Text-to-Speech (Chirp 3 HD voices).
  *
  * Auth: an API key (TTS_API_KEY) or, on Cloud Run, the service account through
  * Application Default Credentials. When TTS is not available the API answers 204

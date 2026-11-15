@@ -8,7 +8,7 @@
 
 const { DateTime } = require('luxon');
 
-/** Deterministic dose id => logging the same dose twice is idempotent. */
+/** Deterministic dose ID: logging the same dose twice is idempotent. */
 const doseId = (medicationId, localDate, time) => `${medicationId}__${localDate}T${time}`;
 
 function isActiveOn(med, localDate) {

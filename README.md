@@ -161,7 +161,7 @@ git clone https://github.com/iSatwik/carecircle.git && cd carecircle && bash dep
 
 **Manual steps** (same result):
 
-Run these commands one at a time in the Antigravity terminal (they work in PowerShell and bash). Replace the `<...>` values.
+Run these commands one at a time in the Cloud Shell terminal (they work in PowerShell and bash). Replace the `<...>` values.
 
 ```bash
 gcloud auth login
